@@ -1,0 +1,497 @@
+<!-- Log Analyzer Tool v0.4 created by Sergey Mesheryakov 5/25/2016--> 
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Analyzer</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+<style>
+*{
+	//border: 1px solid black;
+}
+body {
+	background-color: #EFF;
+}
+
+#textlog{
+	width: 100%;
+	border-radius: 1em;
+	padding: 1em;
+	height: 20em;
+	border: 1px solid #DDD;
+}
+
+.notify-animation{
+	color: orange;
+	-webkit-animation: notify 0.3s 2 ease-in-out;
+	-moz-animation: notify 0.3s 2 ease-in-out;
+	animation: notify 0.3s 2 ease-in-out;
+}
+
+@-webkit-keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+@keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+@-moz-keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+@keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+#results > ul{
+	font-size: 0.75em;
+	margin: 0; 
+	padding: 0;
+	list-style: none;
+	display: inline;
+	overflow: visible;
+}
+
+#list2{
+	float: left;
+	width: 77.5%;
+}
+
+#list{
+	position: relative;
+	width: 22.5%;
+	float: left;
+}
+
+#list2 > li{
+	margin-top: 0.3em;
+	height: 1.0em;
+	background-color: olive;
+}
+
+#list > li{
+	margin-top: 0.3em;
+	height: 1.0em;
+	text-align: left;
+}
+
+#wrapper{
+	position: relative;
+	margin: 0 auto;
+	width: 600px;
+}
+
+button, input[type='file']{
+	margin: 0.3em;
+	height: 2.12em;
+	padding: 0.3em; 
+	width: 10em;
+	border-radius: 1em;
+	box-shadow: none;
+	background-color: #FFF;
+	border: 1px solid #DDD;
+}
+
+.inputfile {
+	width: 0.1px;
+	height: 0.1px;
+	opacity: 0;
+	z-index: -1;
+	position: absolute;
+}
+
+.inputfile + label {
+	font-size: 1em;
+	padding: 0.3em;
+	padding-left: 2em;
+	padding-right: 2em;
+	width: 10em;
+	border-radius: 1em;
+	background-color: white;
+	border: 1px solid #DDD;
+	height: 2.10em;
+	background-color: #FFF;
+}
+
+.msg{
+	margin-top: 2em;
+	width: 600px;
+	font-size: 1em;
+	height: 15em;
+	position: relative;
+	float: left;
+	border: 1px solid #DDD;
+	border-radius: 1em;
+	padding: 1em;
+	overflow: scroll;
+	font-color: red;
+}
+
+#msg > span {
+	position: relative;
+	float: left;
+}
+
+.msg_toggle{
+	height: auto;
+	overflow: hidden;
+}
+
+.text_toggle{
+	height: 3em;
+}
+
+#filename, #filesize{
+	font-size: 0.50em;
+	margin-left: 0.3em;
+}
+
+.magnify{
+	zoom: 1.5;
+}
+
+</style>
+</head>
+<body>
+<div id="wrapper">
+<textarea id="textlog" spellcheck="false" placeholder="Paste log or open file"></textarea>
+<br>
+<button id="btn_scan">Scan</button>
+<input id="myFile" type="file"/ class="inputfile">
+<label for="myFile">Choose a file...</label>
+<span id="filename"></span><span id="filesize"></span>
+<br>
+<div id="results">
+	<br>
+	<ul id="list"></ul>
+	<ul id="list2"></ul>
+</div>
+<br>
+<div id="msg"></div>
+
+
+<script type="text/javascript">
+//IIFE begins
+(function(){
+	
+	//********DEFINES**********
+	
+	var maintext = document.getElementById("textlog"),
+		btn_scan = document.getElementById("btn_scan"),
+		msg = document.getElementById("msg"),
+		buffer = "",
+		dups_arr = [],
+		groups = [],
+		buffer2 = [],
+		file = [],
+		buffer_obj = {
+			logbuffer: []
+		},
+		colors = ["#e6e6ff", "#ffe6e6", "#ffffe6", "#f9ecf9"],
+		Intent_app = {
+			count_all: {regex: /[0-9]{4,4}-[0-9]{2,2}-[0-9]{2,2}\s[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi, 
+						total: 0, 
+						type: "Total",
+						percent: 0,
+						raw: []},
+			count_appstate: {regex: /diagandroid.app.ApplicationState/gi, 
+							 total: 0, 
+							 type: "App Intents",
+							 percent: 0,
+							 raw: []},
+			count_callstate: {regex: /diagandroid.phone.detailedcallstate/gi, 
+							  total: 0, 
+							  type: "Voice Call",
+							  percent: 0,
+							  raw: []},
+			count_pdp: {regex: /pdpcontextstate/gi, 
+						total: 0,
+						type: "PDP",
+						percent: 0,
+						raw: []},
+			count_pdp_request: {regex: /ContextState REQUEST/gi, 
+						total: 0,
+						type: "PDP session request",
+						percent: 0,
+						raw: []},
+			count_pdp_connected: {regex: /ContextState CONNECTED/gi, 
+						total: 0,
+						type: "PDP session on",
+						percent: 0,
+						raw: []},
+			count_pdp_disconnected: {regex: /ContextState DISCONNECTED/gi, 
+						total: 0,
+						type: "PDP session off",
+						percent: 0,
+						raw: []},
+			count_reg: {regex: /svc=reg/gi, 
+						total: 0, 
+						type: "WFC REG",
+						percent: 0,
+						raw: []},
+			count_wfc: {regex: /svc/gi, 
+						total: 0, 
+						type: "WFC",
+						percent: 0,
+						raw: []},
+			count_anr: {regex: /ApplicationTermReason ANR/gi, 
+						total: 0, 
+						type: "ANR",
+						percent: 0,
+						raw: []},
+			count_syshalt: {regex: /normal_system_halt/gi, 
+							total: 0,
+							type: "System Halt",
+							percent: 0,
+							raw: []},
+			count_userhalt: {regex: /user_halted/gi, 
+							 total: 0, 
+							 type: "User Halted",
+							 percent: 0,
+							 raw: []},
+			count_forceclose: {regex: /applicationtermreason crash/gi, 
+							   total: 0, 
+							   type: "Crashed",
+							   percent: 0,
+							   raw: []},
+			count_focusevents: {regex: /focus_/gi, 
+								total: 0, 
+								type: "Focus Events",
+								percent: 0,
+								raw: []},
+			count_droppedcall: {regex: /failed/gi, 
+								total: 0, 
+								type: "Failed Calls",
+								percent: 0,
+								raw: []},
+			count_regerr: {regex: /error:/gi, 
+						   total: 0, 
+						   type: "WFC Errors",
+						   percent: 0,
+						   raw: []} ,
+			count_focus_gain: {regex: /focus_gain/gi, 
+						   total: 0, 
+						   type: "Focus Gain",
+						   percent: 0,
+						   raw: []} ,
+			count_focus_loss: {regex: /focus_loss/gi, 
+						   total: 0, 
+						   type: "Focus Loss",
+						   percent: 0,
+						   raw: []},
+			count_app_start: {regex: /applicationstate start/gi, 
+						   total: 0, 
+						   type: "App Start",
+						   percent: 0,
+						   raw: []}
+			//
+		};
+		
+	//********METHODS*********
+	
+	var duplicate_search = function(){
+		var type_arr = [];
+		
+		//Phase 1****
+		
+		for(prop in Intent_app){
+			if(prop == "count_all" || prop == "count_appstate" || prop == "count_focusevents" || prop == "count_callstate"){continue;}
+			
+			for(x in buffer2){
+				if(buffer2[x].toString().match(Intent_app[prop]["regex"])){
+					Intent_app[prop]["raw"].push(buffer2[x]);
+				}
+			}
+			//Sort raw array by timestamp ascending 
+			Intent_app[prop]["raw"].sort(function(a, b){console.log("\n\nRaw data sorted\n\n")});
+			
+			for(var x = 0,len = Intent_app[prop]["raw"].length; x < len-1;x++){
+				var temp1, temp2, type1 = [];
+				temp1 = Intent_app[prop]["raw"][x].toString().match(/[0-9]{2,2}.[0-9]{3,3}/gi);
+				temp2 =  Intent_app[prop]["raw"][x+1].toString().match(/[0-9]{2,2}.[0-9]{3,3}/gi);
+				type1 = Intent_app[prop]["raw"][x].toString().match(Intent_app[prop]["regex"]);
+				if(Math.abs(temp1[0] - temp2[0]) < 0.100 && match_pkg( Intent_app[prop]["raw"][x],  Intent_app[prop]["raw"][x+1])){
+					$('#msg').append('<span></span>');
+					$('#msg span').last().text("Possible Duplicate @ " + Intent_app[prop]["raw"][x].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi) + " & " + Intent_app[prop]["raw"][x+1].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi) + "=>" + type1[0]);
+					
+					//log to console for testing...
+					
+					console.log("Possible Duplicate @ " + Intent_app[prop]["raw"][x] + " &" + Intent_app[prop]["raw"][x+1]);
+				}
+			}
+			$('#msg').addClass("msg");
+			}
+		//Phase 2****
+	};
+	
+	var test_duplicate_search = function(){
+		$('#msg').addClass("msg");
+		//Phase 1****
+		
+		for(prop in Intent_app){
+			
+			if(prop == "count_all" || prop == "count_appstate" || prop == "count_focusevents" || prop == "count_callstate"){continue;}
+			
+			//console.log("Iterating through prop =>" + Intent_app[prop]["regex"]);
+			
+			
+			try{
+				for(var x = 1, len = buffer2.length, b = buffer_obj; x < len;x++){
+					var regex = Intent_app[prop]["regex"],
+					temp1 = b.logbuffer[x].toString().match(/[0-9]{2,2}.[0-9]{3,3}/gi),
+					temp2 =  b.logbuffer[x+1].toString().match(/[0-9]{2,2}.[0-9]{3,3}/gi),
+					stamp1 = b.logbuffer[x].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi),
+					stamp2 = b.logbuffer[x+1].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi),
+					type1 = b.logbuffer[x].toString().match(regex);
+					
+					
+					if(Math.abs(temp2[0] - temp1[0]) < 2.000 && match_pkg(b.logbuffer[x], b.logbuffer[x+1])){
+					
+						//Create Span element and append to msg div
+						
+						$('#msg').append('<span></span>');
+						$('#msg span').last().text("Possible Duplicate @ " +  stamp1[0] + " & " + stamp2[0] + "=>" + type1[0]);
+						
+						
+						//log to console for testing...
+						
+						//console.log("Possible Duplicate @ " + b.logbuffer[x] + " &" + b.logbuffer[x+1]);
+					}
+				}
+				}catch(err){
+				console.log(err);
+				}
+				
+	
+		temp1, temp2, stamp1, stamp2, type1 = [];	
+		}
+		$("#msg span").size() === 0 ? $('#msg').append('<span>No Duplicates, yay!</span>') : console.log("duplicates=>" + $("#msg span").size());
+		
+	};
+	
+	var match_pkg = function(x1, y1){
+		var x, y = "";
+		x = x1.toString().substr(65);
+		y = y1.toString().substr(65);
+		if(x === y){
+			return true;
+		}else{
+			return false;
+		}
+	};
+	
+	var displaygroup = function(total, type, percent){
+		this.total = total;
+		this.type = type;
+		this.percent = percent;
+	}
+	
+	var scan = function(){
+		Intent_app.count_all.total = 0;
+		dups_arr = [];
+		console.log("****\n***\n**\n*\nScanning... " + Date());
+		buffer = maintext.value;
+		
+		//Find total value for each intent type
+		
+		for(prop in Intent_app){
+			var found = buffer.match(Intent_app[prop]["regex"]);
+			if (prop == "count_dup"){
+				for(x in found){
+					dups_arr.push(found[x]);
+				}
+			}
+			if(found === null){
+				continue;
+			}else{
+				Intent_app[prop]["total"] = found.length;
+			}
+			
+		}
+		buffer2 = buffer.split('\n\n');
+		buffer_obj.logbuffer = buffer2;
+		console.log(Intent_app);
+		console.log("\n\n" + Intent_app["count_all"]["total"] + " Matches found");
+		//console.log(dups_arr);//UNCOMMENT TO DISPLAY TIMESTAMP ARRAY
+		//Show Results
+		showresultbox();
+		//Check for duplicates
+		//console.log("Display Buffer_obj object" + buffer_obj.logbuffer); 
+		test_duplicate_search();
+		
+		
+	};
+	
+		
+	var showresultbox = function(){
+		$('#list li').remove();
+		for(prop in Intent_app){
+			getPercent(prop);
+			$('#list').append("<li>"+Intent_app[prop]['type']+": "+Intent_app[prop]['total']+"</li>");
+			$('#list2').append("<li style='width:" + Intent_app[prop]["percent"]+ "%;'></li>");
+		}
+	};
+	
+	//Get Percentage method
+	var getPercent = function(prop){
+		Intent_app[prop]["percent"] = ((Intent_app[prop]["total"] / Intent_app["count_all"]["total"]) * 100).toFixed();
+	};
+	
+	//Random color generator method
+	 function randcolor(){
+		return colors[Math.floor((Math.random() * 4) + 1)]; 
+	 }
+	//*******LISTENERS*******
+	
+	//Scan button click listener
+	$('#btn_scan').on('click', scan);
+	
+	//Msg Listener 
+	$('#msg').on('dblclick', function(){
+		$('#msg').toggleClass("msg_toggle");
+		$('#textlog').toggleClass("text_toggle");
+		$('#results').toggle("fast");
+	});
+	
+	
+	//filearea Listener
+	$('#filename').mouseover(function(){
+		$('#filename').animate({"zoom": "1.75",
+											 "position": "absolute"}, "fast");
+		$('#filesize').animate({"zoom": "1.75",
+										   "position": "absolute"}, "fast");
+	}).mouseout(function(){
+		$('#filename').animate({"zoom": "1.0"}, "fast");
+		$('#filesize').animate({"zoom": "1.0"}, "fast");
+	});
+	
+	//uncomment to add toggle class for textlog
+	/*$('#textlog').on('dblclick', function(){
+		$('#textlog').toggleClass("msg_toggle");
+	});*/
+	
+	//Listener for file input element
+	myFile.addEventListener('change', function(e){
+		file = document.getElementById("myFile").files[0];
+		var reader = new FileReader();
+		reader.onload = function(e){
+			maintext.innerHTML = e.target.result;
+			$('#filename').text(file.name + " - ");
+			$('#filesize').text(Math.floor(file.size/1024) + "KB");
+		};
+		reader.readAsText(file);
+	});
+})();	//Ends
+</script>
+</div>
+</body>
+</html> 

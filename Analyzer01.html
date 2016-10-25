@@ -1,0 +1,443 @@
+<!-- Log Analyzer Tool v0.1 created by Sergey Mesheryakov 5/25/2016--> 
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Analyzer</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+<style>
+*{
+	//border: 1px solid black;
+}
+body {
+	background-color: #EFF;
+}
+
+#textlog{
+	width: 100%;
+	border-radius: 1em;
+	padding: 1em;
+	height: 20em;
+}
+
+.notify-animation{
+	color: orange;
+	-webkit-animation: notify 0.3s 2 ease-in-out;
+	-moz-animation: notify 0.3s 2 ease-in-out;
+	animation: notify 0.3s 2 ease-in-out;
+}
+
+@-webkit-keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+@keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+@-moz-keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+@keyframes notify{
+	0% {color: black; opacity: 0;}
+	50% {color: red; opacity: 1;}
+	100% {color: black; opacity: 0;}
+}
+
+#results > ul{
+	font-size: 0.75em;
+	margin: 0; 
+	padding: 0;
+	list-style: none;
+	display: inline;
+	overflow: visible;
+}
+
+#list2{
+	float: left;
+	width: 77%;
+}
+
+#list{
+	position: relative;
+	width: 22.5%;
+	float: left;
+}
+
+#list2 > li{
+	margin-top: 0.3em;
+	height: 1.0em;
+	background-color: olive;
+}
+
+#list > li{
+	margin-top: 0.3em;
+	height: 1.0em;
+	text-align: left;
+}
+
+#wrapper{
+	position: relative;
+	margin: 0 auto;
+	width: 600px;
+}
+
+button, input[type="file"] {
+	margin-top: 0.3em;
+	padding: 0.3em; 
+	width: 10em;
+	border-radius: 1em;
+	box-shadow: none;
+	border: none;
+}
+
+.inputfile {
+	width: 0.1px;
+	height: 0.1px;
+	opacity: 0;
+	overflow: hidden;
+	z-index: -1;
+	position: absolute;
+	background-color: #DDD;
+}
+
+.inputfile + label {
+	font-size: 0.85em;
+	padding: 0.3em;
+	padding-left: 2em;
+	padding-right: 2em;
+	width: 10em;
+	border-radius: 1em;
+	background-color: #DDD;
+}
+
+.msg{
+	margin-top: 2em;
+	width: 600px;
+	font-size: 0.75em;
+	height: 15em;
+	position: relative;
+	float: left;
+	border: 1px solid #DDD;
+	border-radius: 1em;
+	padding: 1em;
+	overflow: scroll;
+	font-color: red;
+}
+
+.msg_toggle{
+	height: 0em;
+	border-top: 5px solid #AAA;
+	overflow: hidden;
+	opacity: 0.25;
+}
+
+</style>
+</head>
+<body>
+<div id="wrapper">
+<textarea id="textlog" spellcheck="false" placeholder="Paste log or open file"></textarea>
+<br>
+<button id="btn_scan">Scan</button>
+<input id="myFile" type="file"/ class="inputfile">
+<label for="myFile">Choose a file...</label>
+<br>
+<div id="results">
+	<br>
+	<ul id="list"></ul>
+	<ul id="list2"></ul>
+</div>
+<br>
+<div id="msg"></div>
+
+
+<script type="text/javascript">
+//IIFE begins
+(function(){
+	
+	//********DEFINES**********
+	
+	var maintext = document.getElementById("textlog"),
+		results = document.getElementById("textresult"),
+		btn_scan = document.getElementById("btn_scan"),
+		msg = document.getElementById("msg"),
+		buffer = "",
+		dups_arr = [],
+		groups = [],
+		buffer2 = [],
+		file = [],
+		colors = ["#e6e6ff", "#ffe6e6", "#ffffe6", "#f9ecf9"],
+		Intent_app = {
+			count_all: {regex: /--intent--/gi, 
+						total: 0, 
+						type: "Total",
+						percent: 0,
+						raw: []},
+			count_appstate: {regex: /diagandroid.app.ApplicationState/gi, 
+							 total: 0, 
+							 type: "App Intents",
+							 percent: 0,
+							 raw: []},
+			count_callstate: {regex: /diagandroid.phone.detailedcallstate/gi, 
+							  total: 0, 
+							  type: "Voice Call",
+							  percent: 0,
+							  raw: []},
+			count_pdp: {regex: /pdpcontextstate/gi, 
+						total: 0,
+						type: "PDP",
+						percent: 0,
+						raw: []},
+			count_pdp_request: {regex: /ContextState REQUEST/gi, 
+						total: 0,
+						type: "PDP session request",
+						percent: 0,
+						raw: []},
+			count_pdp_connected: {regex: /ContextState CONNECTED/gi, 
+						total: 0,
+						type: "PDP session on",
+						percent: 0,
+						raw: []},
+			count_pdp_connected: {regex: /ContextState DISCONNECTED/gi, 
+						total: 0,
+						type: "PDP session off",
+						percent: 0,
+						raw: []},
+			count_reg: {regex: /svc=reg/gi, 
+						total: 0, 
+						type: "WFC REG",
+						percent: 0,
+						raw: []},
+			count_wfc: {regex: /svc/gi, 
+						total: 0, 
+						type: "WFC",
+						percent: 0,
+						raw: []},
+			count_anr: {regex: /ApplicationTermReason ANR/gi, 
+						total: 0, 
+						type: "ANR",
+						percent: 0,
+						raw: []},
+			count_syshalt: {regex: /normal_system_halt/gi, 
+							total: 0,
+							type: "System Halt",
+							percent: 0,
+							raw: []},
+			count_userhalt: {regex: /user_halted/gi, 
+							 total: 0, 
+							 type: "User Halted",
+							 percent: 0,
+							 raw: []},
+			count_forceclose: {regex: /applicationtermreason crash/gi, 
+							   total: 0, 
+							   type: "Crashed",
+							   percent: 0,
+							   raw: []},
+			count_focusevents: {regex: /focus_/gi, 
+								total: 0, 
+								type: "Focus Events",
+								percent: 0,
+								raw: []},
+			count_droppedcall: {regex: /failed/gi, 
+								total: 0, 
+								type: "Failed Calls",
+								percent: 0,
+								raw: []},
+			count_regerr: {regex: /error:/gi, 
+						   total: 0, 
+						   type: "WFC Errors",
+						   percent: 0,
+						   raw: []} ,
+			count_focus_gain: {regex: /focus_gain/gi, 
+						   total: 0, 
+						   type: "Focus Gain",
+						   percent: 0,
+						   raw: []} ,
+			count_focus_loss: {regex: /focus_loss/gi, 
+						   total: 0, 
+						   type: "Focus Loss",
+						   percent: 0,
+						   raw: []},
+			count_app_start: {regex: /applicationstate start/gi, 
+						   total: 0, 
+						   type: "App Start",
+						   percent: 0,
+						   raw: []}
+			//
+		};
+		
+	//********METHODS*********
+	
+	var duplicate_search = function(){
+		var type_arr = [];
+		
+		//Phase 1****
+		
+		for(prop in Intent_app){
+			if(prop == "count_all" || prop == "count_appstate" || prop == "count_focusevents" || prop == "count_callstate"){continue;}
+			
+			for(x in buffer2){
+				if(buffer2[x].toString().match(Intent_app[prop]["regex"])){
+					Intent_app[prop]["raw"].push(buffer2[x]);
+				}
+			}
+			//Sort raw array by timestamp ascending 
+			Intent_app[prop]["raw"].sort(function(a, b){console.log("\n\nRaw data sorted\n\n")});
+			
+			for(var x = 0,len = Intent_app[prop]["raw"].length; x < len-1;x++){
+				var temp1, temp2 = [];
+				temp1 = Intent_app[prop]["raw"][x].toString().match(/[0-9]{2,2}.[0-9]{3,3}/gi);
+				temp2 =  Intent_app[prop]["raw"][x+1].toString().match(/[0-9]{2,2}.[0-9]{3,3}/gi);
+				if(Math.abs(temp1[0] - temp2[0]) < 0.050){
+					$('#msg').append('<span></span>');
+					$('#msg span').last().text("Possible Duplicate @ " + Intent_app[prop]["raw"][x].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi) + " & " + Intent_app[prop]["raw"][x+1].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{3,3}/gi) + ">>>>>>");
+					
+					//log to console for testing...
+					
+					console.log("Possible Duplicate @ " + Intent_app[prop]["raw"][x] + " &" + Intent_app[prop]["raw"][x+1]);
+				}
+			}
+			$('#msg').addClass("msg");
+			}
+		//Phase 2****
+	};
+	
+	
+	
+	var displaygroup = function(total, type, percent){
+		this.total = total;
+		this.type = type;
+		this.percent = percent;
+	}
+	
+	var scan = function(){
+		buffer2 = "";
+		Intent_app.count_all.total = 0;
+		dups_arr = [];
+		console.log("****\n***\n**\n*\nScanning... " + Date());
+		buffer = maintext.value;
+		
+		//Find total value for each intent type
+		
+		for(prop in Intent_app){
+			var found = buffer.match(Intent_app[prop]["regex"]);
+			if (prop == "count_dup"){
+				for(x in found){
+					dups_arr.push(found[x]);
+				}
+			}
+			if(found === null){
+				continue;
+			}else{
+				Intent_app[prop]["total"] = found.length;
+			}
+			
+		}
+		buffer2 = buffer.split('\n\n');
+		duplicate_search();
+		console.log(Intent_app);
+		console.log("\n\n" + Intent_app["count_all"]["total"] + " Matches found");
+		//console.log(dups_arr);//UNCOMMENT TO DISPLAY TIMESTAMP ARRAY
+		//Show Results
+		showresultbox();
+		//Check for duplicates
+		
+	};
+	
+		
+	var showresultbox = function(){
+		$('#list li').remove();
+		for(prop in Intent_app){
+			getPercent(prop);
+			$('#list').append("<li>"+Intent_app[prop]['type']+": "+Intent_app[prop]['total']+"</li>");
+			$('#list2').append("<li style='width:" + Intent_app[prop]["percent"]+ "%;'></li>");
+		}
+	};
+	
+	/*var check_duplicates = function(p){
+		var temp = {};
+		var len = buffer2.length;
+		for(prop in Intent_app){
+			temp[prop] = [];
+			for(x in buffer2){
+				if (buffer2[x].toString().match(Intent_app[prop]["regex"])){
+					temp[prop].push(buffer2[x]);
+				}
+			}
+		}
+		console.log(temp);
+		for(prop in temp){
+		if(prop == "count_all" || prop == "count_appstate" || prop == "count_focusevents" || prop == "count_callstate"){continue;}
+		
+		var temp1 = [], temp2 = [], type1 = [], type2 = [];
+			for(var x=1;x<temp[prop].length;x++){
+				temp1 = temp[prop][x].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{1,1}/gi);
+				type1 = temp[prop][x].toString().match(Intent_app[prop]["regex"]);
+				temp2 = temp[prop][x-1].toString().match(/[0-9]{2,2}:[0-9]{2,2}:[0-9]{2,2}.[0-9]{1,1}/gi);
+				type2 = temp[prop][x-1].toString().match(Intent_app[prop]["regex"]);
+				
+				//Compare timestamp to the nearest tenth as well as type of intent
+				//If timestamp is less than 1/10 of a sec apart and type is the same, log as possible duplicate
+				
+				if(temp1[0] == temp2[0] && type1[0] == type2[0]){
+				
+					//Create and append a span element to #msg and populate with the match
+					
+					$('#msg').append('<span></span>');
+					$('#msg span').last().text(type1[0] + ' @ ' + temp1[0] + '---');
+					console.log("Possible Duplicate: " + type1[0]);
+				}
+				$('#msg').addClass("msg");
+				temp1 = [];
+				temp2 = [];
+				type1 = [];
+				type2 = [];
+			}	
+		}
+	};*/
+	
+	//Get Percentage method
+	var getPercent = function(prop){
+		Intent_app[prop]["percent"] = ((Intent_app[prop]["total"] / Intent_app["count_all"]["total"]) * 100).toFixed();
+	};
+	
+	//Random color generator method
+	 function randcolor(){
+		return colors[Math.floor((Math.random() * 4) + 1)]; 
+	 }
+	//*******LISTENERS*******
+	
+	//Scan button click listener
+	$('#btn_scan').on('click', scan);
+	
+	//Msg Listener 
+	$('#msg').on('dblclick', function(){
+		$('#msg').toggleClass("msg_toggle");
+	});
+	
+	//uncomment to add toggle class for textlog
+	/*$('#textlog').on('dblclick', function(){
+		$('#textlog').toggleClass("msg_toggle");
+	});*/
+	
+	//Listener for file input element
+	myFile.addEventListener('change', function(e){
+		file = document.getElementById("myFile").files[0];
+		var reader = new FileReader();
+		reader.onload = function(e){
+			maintext.innerHTML = e.target.result;
+		};
+		reader.readAsText(file);
+	});
+})();	//Ends
+</script>
+</div>
+</body>
+</html> 
