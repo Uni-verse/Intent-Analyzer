@@ -47,7 +47,7 @@
         #list2 > li{
             margin-top: 0.2em;
             height: 1.0em;
-            background-color: olive;
+            background-color: midnightblue;
             transition: width 0.5s ease;
         }
 
@@ -112,8 +112,8 @@
         }
 
         #msg > span {
-            position: relative;
-            float: left;
+            display: block;
+            text-align: center;
         }
 
         #filename, #filesize{
@@ -477,7 +477,7 @@
                                 $('#list li').last().css({"background" : "#DDD"});
                                 console.log("even num of li elements.");
                             }
-                            $('#list2').append("<li style='width:" + (Intent_app[prop]["percent"] > 0.0 && Intent_app[prop]["percent"] < 1.0 ? 1 :  Intent_app[prop]["percent"])+ "%;'></li>");
+                            $('#list2').append("<li style='width:" + (Intent_app[prop]["percent"] > 0.0 && Intent_app[prop]["percent"] < 1.0 ? "1" :  Intent_app[prop]["percent"])+ "%;'></li>");
                         }
                     }catch(err){
                         console.log("showresultbox func" + err);
