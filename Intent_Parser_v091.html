@@ -361,8 +361,9 @@
                     for(prop in Intent_app){
                         if(prop == "count_all" || prop == "count_appstate" || prop == "count_focusevents" || prop == "count_callstate" || prop == "__proto__") {continue;}
                         if(Intent_app.hasOwnProperty(prop)){
-
-                            console.log("Iterating through prop =>" + Intent_app[prop]["regex"]);
+                            
+                            //Uncomment to log iteration through object property
+//                            console.log("Iterating through prop =>" + Intent_app[prop]["regex"]);
 
 
                             try{
@@ -475,9 +476,10 @@
                             $('#list').append("<li>"+Intent_app[prop]['type']+": "+Intent_app[prop]['total']+"</li>");
                             if (($('#list').get(0).childElementCount % 2) == 0){
                                 $('#list li').last().css({"background" : "#DDD"});
-                                console.log("even num of li elements.");
+                                //Uncomment to log total num li elements
+//                                console.log("even num of li elements.");
                             }
-                            $('#list2').append("<li style='width:" + (Intent_app[prop]["percent"] > 0.0 && Intent_app[prop]["percent"] < 1.0 ? "1" :  Intent_app[prop]["percent"])+ "%;'></li>");
+                            $('#list2').append("<li style='width:" + (Intent_app[prop]["percent"] > 0.00 && Intent_app[prop]["percent"] < 1.0 ? "1" :  Intent_app[prop]["percent"])+ "%;'></li>");
                         }
                     }catch(err){
                         console.log("showresultbox func" + err);
