@@ -16,7 +16,7 @@ DEPENDENCIES:
 
 HOW TO USE: 
 
-Open page in browser, preferrably Chrome. Open file log or paste content into the textarea.
+Open page in browser, preferrably Chrome. Open file log or paste content into the textarea. Click scan button.
 
 ADB PULL 
 
