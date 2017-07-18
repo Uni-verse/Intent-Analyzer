@@ -1,6 +1,11 @@
 # Intent-Analyzer
 A single webpage application tool used to analyze/parse oem intent log files
 
+FEATURES: 
+
++ Detecting Duplicate Intents being broadcasted
++ Counting Intent types
+
 DEPENDENCIES: 
 
 + Android Debug Bridge/Command Line Tools (Recommended)
